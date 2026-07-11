@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  base: '/mertyk-kpss-ultimate/', // GitHub Pages için repo adı
   plugins: [
     react(),
     VitePWA({

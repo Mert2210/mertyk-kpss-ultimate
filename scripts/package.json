@@ -1,0 +1,9 @@
+{
+  "name": "scripts",
+  "version": "1.0.0",
+  "description": "Serverless Cron Jobs",
+  "type": "module",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.42.0"
+  }
+}

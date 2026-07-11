@@ -1,0 +1,29 @@
+name: Gece Hatirlatma Motoru (Spaced Repetition)
+
+on:
+  schedule:
+    # Her gece 00:00 UTC (TSİ 03:00)
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Manuel olarak tetikleyebilmek için
+
+jobs:
+  run-reminders:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install @supabase/supabase-js
+        working-directory: ./scripts
+
+      - name: Run Reminder Script
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/reminderJob.js

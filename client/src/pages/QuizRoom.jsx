@@ -1,22 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { io } from 'socket.io-client';
+import { supabase } from '../lib/supabase';
 import { ArrowLeft, Clock, CheckCircle, XCircle } from 'lucide-react';
 
 export default function QuizRoom() {
   const { code } = useParams();
   const navigate = useNavigate();
-  const [socket, setSocket] = useState(null);
   const [status, setStatus] = useState('waiting'); // waiting, question, result
   const [activeQuestion, setActiveQuestion] = useState(null);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
 
   useEffect(() => {
-    // Gerçekte burada sunucuya bağlanılacak
-    const newSocket = io('http://localhost:3000', { transports: ['websocket'], autoConnect: false });
-    setSocket(newSocket);
-    
-    // Simülasyon: 5 saniye sonra soru gelsin
+    // Supabase Realtime Channel (Serverless Canlı Motor)
+    const roomChannel = supabase.channel(`room_${code}`);
+
+    roomChannel
+      .on('broadcast', { event: 'new_question' }, (payload) => {
+        // Öğretmen yeni soru gönderdiğinde çalışır
+        setStatus('question');
+        setActiveQuestion(payload.payload.question);
+        setSelectedAnswer(null);
+      })
+      .on('broadcast', { event: 'end_quiz' }, () => {
+        navigate('/student');
+      })
+      .subscribe();
+
+    // Sadece test amaçlı simülasyon (Gerçekte öğretmenden broadcast beklenir)
     const timer = setTimeout(() => {
       setStatus('question');
       setActiveQuestion({
@@ -26,21 +36,29 @@ export default function QuizRoom() {
     }, 3000);
 
     return () => {
-      newSocket.close();
+      supabase.removeChannel(roomChannel);
       clearTimeout(timer);
     };
-  }, []);
+  }, [code, navigate]);
 
-  const handleAnswer = (index) => {
+  const handleAnswer = async (index) => {
     // Telefonlarda titreşim efekti (Native app hissi verir)
     if (navigator.vibrate) navigator.vibrate(50);
     
     setSelectedAnswer(index);
     
-    // Simülasyon: 1 saniye sonra cevabı göster
+    // Öğrencinin cevabını öğretmene veya diğer öğrencilere iletmek için broadcast
+    // Veya direkt veritabanına Insert yapabiliriz
+    const roomChannel = supabase.channel(`room_${code}`);
+    roomChannel.send({
+      type: 'broadcast',
+      event: 'student_answer',
+      payload: { answerIndex: index }
+    });
+
     setTimeout(() => {
       setStatus('result');
-    }, 1000);
+    }, 500);
   };
 
   return (
