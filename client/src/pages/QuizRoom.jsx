@@ -12,7 +12,11 @@ export default function QuizRoom() {
 
   useEffect(() => {
     // Supabase Realtime Channel (Serverless Canlı Motor)
-    const roomChannel = supabase.channel(`room_${code}`);
+    const roomChannel = supabase.channel(`room_${code}`, {
+      config: {
+        broadcast: { self: true },
+      },
+    });
 
     roomChannel
       .on('broadcast', { event: 'new_question' }, (payload) => {
