@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Camera, Image as ImageIcon, Save, Calendar, Play, Crop, Check } from 'lucide-react';
+import { ArrowLeft, Camera, Image as ImageIcon, Save, Calendar, Play, Crop, Check, Loader2 } from 'lucide-react';
 import { EGITIM_SEVIYELERI } from '../lib/constants';
+import { supabase } from '../lib/supabase';
 
 export default function StudentAddQuestion() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [photo, setPhoto] = useState(null);
+  const [imageFile, setImageFile] = useState(null);
+  const [loading, setLoading] = useState(false);
   
   // Form States
   const [seviye, setSeviye] = useState('');
@@ -20,7 +23,9 @@ export default function StudentAddQuestion() {
 
   const handlePhotoUpload = (e) => {
     if(e.target.files && e.target.files[0]) {
-      setPhoto(URL.createObjectURL(e.target.files[0]));
+      const file = e.target.files[0];
+      setPhoto(URL.createObjectURL(file));
+      setImageFile(file);
       setStep(1.5); // Kırpma Adımı
     }
   };
@@ -30,9 +35,53 @@ export default function StudentAddQuestion() {
     setStep(2);
   };
 
-  const handleSave = () => {
-    alert('Soru başarıyla kütüphaneye eklendi! Hatırlatma kuruldu.');
-    navigate('/student/library');
+  const handleSave = async () => {
+    if (!imageFile) {
+      alert('Lütfen bir fotoğraf ekleyin.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Oturum bulunamadı. Lütfen giriş yapın.');
+
+      // 1. Upload to Supabase Storage
+      const fileExt = imageFile.name.split('.').pop() || 'jpg';
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage
+        .from('questions')
+        .upload(fileName, imageFile);
+      
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('questions')
+        .getPublicUrl(fileName);
+
+      // 2. Insert into Database
+      const { error: dbError } = await supabase
+        .from('questions')
+        .insert([{
+          user_id: user.id,
+          image_url: publicUrl,
+          seviye,
+          ders,
+          dogru_cevap: dogruCevap,
+          cozum_linki: cozumLinki,
+          hatirlatma_tipi: hatirlatmaTipi,
+          hatirlatma_degeri: parseInt(hatirlatmaDegeri)
+        }]);
+
+      if (dbError) throw dbError;
+
+      alert('Soru başarıyla kütüphaneye eklendi! Hatırlatma kuruldu.');
+      navigate('/student/library');
+    } catch (err) {
+      alert('Hata: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -168,10 +217,10 @@ export default function StudentAddQuestion() {
                 </div>
               </div>
 
-              <button onClick={handleSave}
-                className="w-full mt-6 py-4 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center">
-                <Save className="w-5 h-5 mr-2" />
-                Kumbaraya Kaydet
+              <button onClick={handleSave} disabled={loading}
+                className="w-full mt-6 py-4 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed">
+                {loading ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Save className="w-5 h-5 mr-2" />}
+                {loading ? 'Kaydediliyor...' : 'Kumbaraya Kaydet'}
               </button>
             </div>
           </div>

@@ -12,11 +12,19 @@ export default function ProtectedRoute({ children, allowedRole }) {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         setUser(session.user);
-        // Gerçekte role tablosundan bakılır, şimdilik mock
-        const mockRole = session.user.email?.includes('admin') ? 'admin' 
-                        : session.user.email?.includes('teacher') ? 'teacher' 
-                        : 'student';
-        setRole(mockRole);
+        
+        // Veritabanından profili çek (Gerçek Rol)
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .single();
+          
+        if (profile) {
+          setRole(profile.role);
+        } else {
+          setRole('student'); // Varsayılan
+        }
       }
       setLoading(false);
     };

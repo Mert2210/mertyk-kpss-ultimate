@@ -1,36 +1,103 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, BookX, Trophy, Flame, Play, Plus, Target, Brain, TrendingUp, Download, Loader2 } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import jsPDF from 'jspdf';
 
 export default function StudentLibrary() {
   const navigate = useNavigate();
   const [loadingMore, setLoadingMore] = useState(false);
-  
-  const [wrongAnswers, setWrongAnswers] = useState([
-    {
-      id: 1,
-      questionText: 'Milli Mücadele döneminde "Ordular ilk hedefiniz Akdeniz'dir!" emri nerede verilmiştir?',
-      studentAnswer: 'Sakarya Meydan Muharebesi',
-      correctAnswer: 'Büyük Taarruz',
-      date: '10 Temmuz 2026',
-      videoLink: 'https://youtube.com/watch?v=ornek'
-    }
-  ]);
+  const [wrongAnswers, setWrongAnswers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchQuestions = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data, error } = await supabase
+          .from('questions')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        setWrongAnswers(data || []);
+      } catch (error) {
+        console.error('Soru çekme hatası:', error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchQuestions();
+  }, []);
 
   // Sonsuz Kaydırma Simülasyonu
   const handleScroll = (e) => {
-    const bottom = e.target.scrollHeight - e.target.scrollTop === e.target.clientHeight;
-    if (bottom && !loadingMore) {
-      setLoadingMore(true);
-      setTimeout(() => {
-        setWrongAnswers(prev => [...prev, { ...prev[0], id: Date.now() }]);
-        setLoadingMore(false);
-      }, 1500);
-    }
+    // Implement real pagination later if needed
   };
 
-  const handleExportPDF = () => {
-    alert('PDF Oluşturuluyor... Seçili sorularınız baskıya hazır A4 formatına dönüştürülecektir.');
+  const handleExportPDF = async () => {
+    if (wrongAnswers.length === 0) {
+      alert('PDF oluşturulacak soru bulunamadı.');
+      return;
+    }
+    
+    alert('PDF oluşturuluyor, lütfen bekleyin. İnternet hızınıza göre birkaç saniye sürebilir...');
+    
+    try {
+      const doc = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = doc.internal.pageSize.getWidth();
+      const pdfHeight = doc.internal.pageSize.getHeight();
+      let yOffset = 10;
+
+      for (let i = 0; i < wrongAnswers.length; i++) {
+        const item = wrongAnswers[i];
+        if (!item.image_url) continue;
+
+        // Resmi blob olarak çek (CORS sorunlarını aşmak için DataURL'e çevir)
+        const res = await fetch(item.image_url);
+        const blob = await res.blob();
+        const base64 = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(blob);
+        });
+
+        // Resim boyutlarını hesapla
+        const img = new Image();
+        img.src = base64;
+        await new Promise((resolve) => { img.onload = resolve; });
+
+        const imgWidth = pdfWidth - 20; // Kenarlardan 10mm boşluk
+        const imgRatio = img.width / img.height;
+        const imgHeight = imgWidth / imgRatio;
+
+        // Sayfa sonuna geldiysek yeni sayfa ekle
+        if (yOffset + imgHeight + 10 > pdfHeight - 10 && i > 0) {
+          doc.addPage();
+          yOffset = 10;
+        }
+
+        // Soru bilgilerini yaz
+        doc.setFontSize(10);
+        doc.text(`Tarih: ${new Date(item.created_at).toLocaleDateString('tr-TR')} | Ders: ${item.ders || '-'} | Cevap: ${item.dogru_cevap || '-'}`, 10, yOffset);
+        yOffset += 5;
+
+        // Resmi PDF'e ekle
+        // Formatı otomatik algılaması için 'JPEG' veya 'PNG' yerine sadece extension kullanıyoruz.
+        const format = item.image_url.toLowerCase().endsWith('.png') ? 'PNG' : 'JPEG';
+        doc.addImage(base64, format, 10, yOffset, imgWidth, imgHeight);
+        yOffset += imgHeight + 15; // Bir sonraki soru için boşluk bırak
+      }
+
+      doc.save('Mertyk_Yanlis_Kumbaram.pdf');
+    } catch (error) {
+      console.error('PDF Hatası:', error);
+      alert('PDF oluşturulurken bir hata oluştu: ' + error.message);
+    }
   };
 
   return (
@@ -90,27 +157,33 @@ export default function StudentLibrary() {
           </div>
           
           <div className="space-y-4">
-            {wrongAnswers.map((item) => (
+            {loading ? (
+              <div className="flex justify-center py-10"><Loader2 className="w-8 h-8 animate-spin text-primary-500" /></div>
+            ) : wrongAnswers.length === 0 ? (
+              <div className="text-center py-10 text-slate-500">Henüz kumbarada soru yok.</div>
+            ) : wrongAnswers.map((item) => (
               <div key={item.id} className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-                <p className="text-xs text-slate-400 mb-2">{item.date}</p>
-                <p className="font-semibold text-slate-800 mb-4 text-sm sm:text-base leading-snug">
-                  {item.questionText}
-                </p>
+                <p className="text-xs text-slate-400 mb-2">{new Date(item.created_at).toLocaleDateString('tr-TR')}</p>
+                {item.image_url && (
+                  <img src={item.image_url} alt="Soru" className="w-full max-h-64 object-contain rounded-lg mb-4 border border-slate-100 bg-slate-50" />
+                )}
                 
                 <div className="space-y-2 text-sm mb-4">
-                  <div className="flex items-start p-3 bg-red-50 border border-red-100 rounded-lg">
-                    <span className="font-bold text-red-600 w-24 flex-shrink-0">Senin Cevabın:</span>
-                    <span className="text-red-700 line-through">{item.studentAnswer}</span>
+                  <div className="flex items-start p-3 bg-slate-50 border border-slate-100 rounded-lg">
+                    <span className="font-bold text-slate-600 w-24 flex-shrink-0">Ders/Seviye:</span>
+                    <span className="text-slate-700">{item.ders} - {item.seviye}</span>
                   </div>
-                  <div className="flex items-start p-3 bg-green-50 border border-green-100 rounded-lg">
-                    <span className="font-bold text-green-600 w-24 flex-shrink-0">Doğru Cevap:</span>
-                    <span className="text-green-700 font-medium">{item.correctAnswer}</span>
-                  </div>
+                  {item.dogru_cevap && (
+                    <div className="flex items-start p-3 bg-green-50 border border-green-100 rounded-lg">
+                      <span className="font-bold text-green-600 w-24 flex-shrink-0">Doğru Cevap:</span>
+                      <span className="text-green-700 font-medium">{item.dogru_cevap}</span>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="flex justify-between items-center mt-4">
-                  {item.videoLink ? (
-                    <a href={item.videoLink} target="_blank" rel="noreferrer" className="inline-flex items-center text-sm font-semibold text-red-600 hover:text-red-700">
+                  {item.cozum_linki ? (
+                    <a href={item.cozum_linki} target="_blank" rel="noreferrer" className="inline-flex items-center text-sm font-semibold text-red-600 hover:text-red-700">
                       <Play className="w-4 h-4 mr-1" />
                       Çözüm Videosu
                     </a>
