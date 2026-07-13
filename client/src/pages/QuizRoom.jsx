@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import io from 'socket.io-client';
 import { ArrowLeft, Clock, CheckCircle, XCircle } from 'lucide-react';
 
 export default function QuizRoom() {
@@ -11,24 +11,20 @@ export default function QuizRoom() {
   const [selectedAnswer, setSelectedAnswer] = useState(null);
 
   useEffect(() => {
-    // Supabase Realtime Channel (Serverless Canlı Motor)
-    const roomChannel = supabase.channel(`room_${code}`, {
-      config: {
-        broadcast: { self: true },
-      },
+    // Socket.io Bağlantısı
+    const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000');
+    
+    socket.emit('join_room', code);
+
+    socket.on('new_question', (question) => {
+      setStatus('question');
+      setActiveQuestion(question);
+      setSelectedAnswer(null);
     });
 
-    roomChannel
-      .on('broadcast', { event: 'new_question' }, (payload) => {
-        // Öğretmen yeni soru gönderdiğinde çalışır
-        setStatus('question');
-        setActiveQuestion(payload.payload.question);
-        setSelectedAnswer(null);
-      })
-      .on('broadcast', { event: 'end_quiz' }, () => {
-        navigate('/student');
-      })
-      .subscribe();
+    socket.on('end_quiz', () => {
+      navigate('/student');
+    });
 
     // Sadece test amaçlı simülasyon (Gerçekte öğretmenden broadcast beklenir)
     const timer = setTimeout(() => {
@@ -40,7 +36,7 @@ export default function QuizRoom() {
     }, 3000);
 
     return () => {
-      supabase.removeChannel(roomChannel);
+      socket.disconnect();
       clearTimeout(timer);
     };
   }, [code, navigate]);
@@ -53,11 +49,10 @@ export default function QuizRoom() {
     
     // Öğrencinin cevabını öğretmene veya diğer öğrencilere iletmek için broadcast
     // Veya direkt veritabanına Insert yapabiliriz
-    const roomChannel = supabase.channel(`room_${code}`);
-    roomChannel.send({
-      type: 'broadcast',
-      event: 'student_answer',
-      payload: { answerIndex: index }
+    const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000');
+    socket.emit('student_answer', {
+      room: code,
+      answerIndex: index
     });
 
     setTimeout(() => {

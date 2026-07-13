@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Camera, Image as ImageIcon, Save, Calendar, Play, Crop, Check, Loader2 } from 'lucide-react';
 import { EGITIM_SEVIYELERI } from '../lib/constants';
-import { supabase } from '../lib/supabase';
+import api from '../lib/api';
 
 export default function StudentAddQuestion() {
   const navigate = useNavigate();
@@ -42,38 +42,20 @@ export default function StudentAddQuestion() {
     }
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Oturum bulunamadı. Lütfen giriş yapın.');
+      const formData = new FormData();
+      formData.append('image', imageFile);
+      formData.append('seviye', seviye);
+      formData.append('ders', ders);
+      formData.append('dogru_cevap', dogruCevap);
+      formData.append('cozum_linki', cozumLinki);
+      formData.append('hatirlatma_tipi', hatirlatmaTipi);
+      formData.append('hatirlatma_degeri', hatirlatmaDegeri);
 
-      // 1. Upload to Supabase Storage
-      const fileExt = imageFile.name.split('.').pop() || 'jpg';
-      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
-      const { error: uploadError } = await supabase.storage
-        .from('questions')
-        .upload(fileName, imageFile);
-      
-      if (uploadError) throw uploadError;
-
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('questions')
-        .getPublicUrl(fileName);
-
-      // 2. Insert into Database
-      const { error: dbError } = await supabase
-        .from('questions')
-        .insert([{
-          user_id: user.id,
-          image_url: publicUrl,
-          seviye,
-          ders,
-          dogru_cevap: dogruCevap,
-          cozum_linki: cozumLinki,
-          hatirlatma_tipi: hatirlatmaTipi,
-          hatirlatma_degeri: parseInt(hatirlatmaDegeri)
-        }]);
-
-      if (dbError) throw dbError;
+      await api.post('/questions', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
 
       alert('Soru başarıyla kütüphaneye eklendi! Hatırlatma kuruldu.');
       navigate('/student/library');

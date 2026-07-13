@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, BookX, Trophy, Flame, Play, Plus, Target, Brain, TrendingUp, Download, Loader2 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import api from '../lib/api';
 import jsPDF from 'jspdf';
 
 export default function StudentLibrary() {
@@ -13,17 +13,9 @@ export default function StudentLibrary() {
   useEffect(() => {
     const fetchQuestions = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        const { data, error } = await supabase
-          .from('questions')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
-
-        if (error) throw error;
-        setWrongAnswers(data || []);
+        // Backend'den soruları çek
+        const response = await api.get('/questions');
+        setWrongAnswers(response.data || []);
       } catch (error) {
         console.error('Soru çekme hatası:', error.message);
       } finally {
