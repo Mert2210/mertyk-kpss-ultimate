@@ -1,0 +1,13 @@
+{
+  "name": "mertyk-kpss-ultimate-fullstack",
+  "version": "1.0.0",
+  "description": "Fullstack deployment for Azure App Service",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "start": "node server/server.js",
+    "build": "cd client && npm install && npm run build",
+    "postinstall": "cd server && npm install"
+  }
+}
