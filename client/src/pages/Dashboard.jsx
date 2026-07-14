@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+
 import { useNavigate } from 'react-router-dom';
 import { LogOut, Plus, BookOpen, Users } from 'lucide-react';
 
@@ -10,22 +10,26 @@ export default function Dashboard() {
 
   useEffect(() => {
     // Session kontrolü
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        navigate('/login');
-      } else {
-        setUser(session.user);
-        // Örnek: Gerçekte Supabase'den hocanın sınıfları çekilecek
+    const token = localStorage.getItem('token');
+    const userData = localStorage.getItem('user');
+    if (!token || !userData) {
+      navigate('/login');
+    } else {
+      try {
+        setUser(JSON.parse(userData));
         setClasses([
           { id: 1, name: '12A Sayısal', code: '4X9P2', studentCount: 24 },
           { id: 2, name: 'KPSS Genel Kültür', code: 'KPSS24', studentCount: 150 }
         ]);
+      } catch (e) {
+        navigate('/login');
       }
-    });
+    }
   }, [navigate]);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
     navigate('/login');
   };
 

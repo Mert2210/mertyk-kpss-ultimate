@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, Play, Brain, Target, TrendingUp, Swords, Plus, Star } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+
 
 export default function StudentDashboard() {
   const [classCode, setClassCode] = useState('');
@@ -17,8 +17,9 @@ export default function StudentDashboard() {
     }, 800);
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
     navigate('/login');
   };
 
